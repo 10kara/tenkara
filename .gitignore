@@ -1,0 +1,13 @@
+# Зависимости и сборка
+node_modules/
+dist/
+.vite/
+
+# Локальные ключи Supabase — в git им не место
+.env
+.env.*
+!.env.example
+
+# Служебное
+.DS_Store
+*.log

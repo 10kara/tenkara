@@ -9,6 +9,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  checks: write
 
 concurrency:
   group: pages
@@ -25,9 +26,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci
 
       - name: Build
         run: npm run build
@@ -37,10 +39,24 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VITE_SUPABASE_STORAGE_BUCKET: ${{ secrets.VITE_SUPABASE_STORAGE_BUCKET }}
 
-      # GitHub Pages has no SPA fallback. Serving index.html as 404.html
-      # lets BrowserRouter keep clean URLs such as /gar-archives/character.
+      # GitHub Pages не умеет SPA-fallback для чистых URL, поэтому
+      # 404.html = index.html: BrowserRouter сам разберёт /character, /history…
       - name: Add SPA fallback
         run: cp dist/index.html dist/404.html
+
+      # Защита от «белой страницы»: пути ассетов в собранном index.html
+      # обязаны совпадать с путём, по которому Pages отдаёт этот репозиторий.
+      - name: Check asset base against Pages URL
+        run: |
+          base="/${GITHUB_REPOSITORY#*/}/"
+          echo "Pages отдаёт сайт из: $base"
+          if ! grep -q "src=\"$base" dist/index.html; then
+            echo "::error::В dist/index.html ассеты подключены не из \"$base\" — на GitHub Pages это даст 404 и пустую страницу."
+            echo "Проверьте base в vite.config.js (он берётся из GITHUB_REPOSITORY) и settings → Pages."
+            grep -o 'src="[^"]*"' dist/index.html
+            exit 1
+          fi
+          echo "OK: ассеты лежат по адресу $base"
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
